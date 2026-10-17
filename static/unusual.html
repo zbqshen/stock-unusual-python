@@ -204,6 +204,7 @@
     竞价拉升: 'tone-up', 竞价打压: 'tone-down', 竞价对倒: '', 尾盘拉升: 'tone-up', 尾盘打压: 'tone-down', 尾盘对倒: '',
     盘中强势: 'tone-up', 盘中弱势: 'tone-down', 急速拉升: 'tone-up', 急速下跌: 'tone-down',
   };
+  const PAGE_PREFIX = location.pathname.startsWith('/unusual-py') ? '/unusual-py' : '';
   const state = {
     mode: 'all', code: extractCode(), ws: null, reconnectTimer: null,
     rows: [], visibleTypes: loadVisibleTypes(), discoveredTypes: loadDiscoveredTypes(), filtersTouched: localStorage.getItem(FILTER_TOUCHED_KEY) === '1',
@@ -299,7 +300,7 @@
   async function loadCustomBlocks() {
     if (state.customBlocksLoaded) { renderCustomBlocks(); return; }
     try {
-      const res = await fetch('/api/stock_unusual_blocks');
+      const res = await fetch(`${PAGE_PREFIX}/api/stock_unusual_blocks`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       state.customBlocks = Array.isArray(data.items) ? data.items : [];
@@ -429,7 +430,7 @@
       params.set('limit', String(PAGE_SIZE));
     }
     if (state.mode === 'current' && state.code) params.set('code', state.code);
-    return `${proto}//${location.host}/ws/stock-unusual?${params.toString()}`;
+    return `${proto}//${location.host}${PAGE_PREFIX}/ws/stock-unusual?${params.toString()}`;
   }
   function connect() {
     if (state.ws) state.ws.close();
@@ -653,7 +654,7 @@
       const params = state.mode === 'custom' ? customRequestParams() : new URLSearchParams({scope: 'all'});
       params.set('limit', String(PAGE_SIZE));
       params.set('offset', String(state.rows.length));
-      const res = await fetch(`/api/stock-unusual?${params.toString()}`);
+      const res = await fetch(`${PAGE_PREFIX}/api/stock-unusual?${params.toString()}`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       render(data, {preserveTop: true});

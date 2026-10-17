@@ -35,12 +35,23 @@
     .status-compact { display: none; }
     .settings-wrap { position: relative; }
     .custom-wrap { position: relative; }
-    .custom-panel { position: absolute; top: calc(100% + 8px); left: 0; width: min(560px, calc(100vw - 18px)); display: none; background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 10px; box-shadow: var(--shadow); z-index: 2147483647; }
+    .custom-panel { position: absolute; top: calc(100% + 8px); left: 0; width: min(640px, calc(100vw - 18px)); max-height: min(680px, calc(100vh - 70px)); overflow: auto; display: none; background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 10px; box-shadow: var(--shadow); z-index: 2147483647; }
     .custom-panel.open { display: block; }
-    .custom-grid { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px; align-items: center; }
-    .custom-grid label { color: var(--muted); white-space: nowrap; }
-    .custom-grid select, .custom-grid input { min-width: 0; width: 100%; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); color: var(--text); padding: 5px 7px; font-size: 12px; }
-    .custom-actions { display: flex; justify-content: flex-end; gap: 6px; margin-top: 9px; }
+    .custom-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+    .custom-title { color: var(--text); font-weight: 750; font-size: 13px; }
+    .custom-tools { display: flex; gap: 5px; align-items: center; flex-wrap: wrap; }
+    .custom-filter { min-width: 180px; flex: 1 1 220px; border: 1px solid var(--border); border-radius: 9px; background: var(--bg); color: var(--text); padding: 6px 8px; font-size: 12px; }
+    .custom-tool { border: 1px solid var(--border); background: var(--bg); padding: 5px 8px; }
+    .custom-tool:hover { border-color: var(--accent); color: var(--accent); }
+    .custom-block-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 6px; max-height: min(470px, calc(100vh - 220px)); overflow: auto; padding: 2px; }
+    .custom-block-option { display: flex; align-items: center; gap: 7px; min-width: 0; border: 1px solid var(--border); border-radius: 9px; padding: 7px 8px; background: var(--bg); font-size: 12px; cursor: pointer; }
+    .custom-block-option:hover { border-color: var(--accent); background: var(--accent-soft); }
+    .custom-block-option input { margin: 0; flex: 0 0 auto; }
+    .custom-block-option span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .custom-block-option small { margin-left: auto; color: var(--muted); flex: 0 0 auto; }
+    .custom-empty { padding: 20px 8px; text-align: center; color: var(--muted); grid-column: 1 / -1; }
+    .custom-actions { display: flex; justify-content: space-between; align-items: center; gap: 6px; margin-top: 9px; }
+    .custom-actions .status { max-width: none; }
     .settings-panel { position: absolute; top: calc(100% + 8px); left: 0; right: auto; width: min(760px, calc(100vw - 18px)); max-height: min(620px, calc(100vh - 70px)); overflow: auto; display: none; background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 10px; box-shadow: var(--shadow); z-index: 2147483647; }
     .settings-panel.open { display: block; }
     .settings-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; color: var(--muted); font-size: 12px; }
@@ -104,22 +115,19 @@
         <button id="tabCurrent">当前</button>
       </div>
       <div class="custom-wrap">
-        <div id="customPanel" class="custom-panel" role="dialog" aria-label="自定板块范围">
-          <div class="custom-grid">
-            <label for="customBlockMode">板块范围</label>
-            <select id="customBlockMode">
-              <option value="all">所有板块</option>
-              <option value="exact">指定板块</option>
-              <option value="contains">板块名称包含文本</option>
-            </select>
-            <label id="customBlockNameLabel" for="customBlockName">板块</label>
-            <select id="customBlockName" disabled><option value="">加载板块中...</option></select>
-            <label id="customBlockTextLabel" for="customBlockText" hidden>包含文本</label>
-            <input id="customBlockText" type="search" placeholder="例如：日线、机器人" hidden />
+        <div id="customPanel" class="custom-panel" role="dialog" aria-label="自定板块范围" aria-hidden="true">
+          <div class="custom-head">
+            <strong class="custom-title">自定板块</strong>
+            <div class="custom-tools">
+              <input id="customBlockSearch" class="custom-filter" type="search" placeholder="输入文本，筛选板块名" aria-label="筛选板块名" />
+              <button id="customSelectAll" class="custom-tool" type="button">全选</button>
+              <button id="customSelectNone" class="custom-tool" type="button">全不选</button>
+            </div>
           </div>
+          <div id="customBlockList" class="custom-block-list"><div class="custom-empty">加载板块中...</div></div>
           <div class="custom-actions">
-            <span id="customSummary" class="status"></span>
-            <button id="customApply" class="active" type="button">应用</button>
+            <span id="customSummary" class="status">尚未加载板块</span>
+            <button id="customApply" class="active" type="button">应用选择</button>
           </div>
         </div>
       </div>
@@ -201,7 +209,7 @@
     rows: [], visibleTypes: loadVisibleTypes(), discoveredTypes: loadDiscoveredTypes(), filtersTouched: localStorage.getItem(FILTER_TOUCHED_KEY) === '1',
     stickBottom: true, renderLimit: PAGE_SIZE, totalRows: 0, loadingOlder: false, lastMeta: null,
     voiceEnabled: localStorage.getItem(VOICE_KEY) === '1', voiceSeenRows: new Set(), voiceSnapshotReady: false,
-    custom: loadCustomScope(), customBlocksLoaded: false,
+    custom: loadCustomScope(), customBlocks: [], customBlocksLoaded: false,
   };
   const $ = (id) => document.getElementById(id);
 
@@ -239,57 +247,91 @@
   function loadCustomScope() {
     try {
       const value = JSON.parse(localStorage.getItem(CUSTOM_SCOPE_KEY) || '{}');
+      const selected = Array.isArray(value.selected) ? value.selected.map(String) : null;
       return {
-        blockMode: ['all', 'exact', 'contains'].includes(value.blockMode) ? value.blockMode : 'all',
-        blockName: String(value.blockName || ''), blockText: String(value.blockText || ''),
+        selected, search: String(value.search || ''),
+        legacyMode: String(value.blockMode || ''), legacyName: String(value.blockName || ''), legacyText: String(value.blockText || ''),
       };
-    } catch { return {blockMode: 'all', blockName: '', blockText: ''}; }
+    } catch { return {selected: null, search: '', legacyMode: '', legacyName: '', legacyText: ''}; }
   }
   function persistCustomScope() {
-    localStorage.setItem(CUSTOM_SCOPE_KEY, JSON.stringify(state.custom));
+    localStorage.setItem(CUSTOM_SCOPE_KEY, JSON.stringify({selected: state.custom.selected || [], search: state.custom.search || ''}));
   }
   function customRequestParams() {
-    const params = new URLSearchParams({scope: 'custom', block_mode: state.custom.blockMode});
-    if (state.custom.blockMode === 'exact') params.set('block_name', state.custom.blockName);
-    if (state.custom.blockMode === 'contains') params.set('block_text', state.custom.blockText);
+    const params = new URLSearchParams({scope: 'custom'});
+    const selected = state.custom.selected || [];
+    const allSelected = state.customBlocksLoaded && selected.length === state.customBlocks.length;
+    params.set('block_mode', allSelected ? 'all' : 'selected');
+    if (!allSelected) selected.forEach((name) => params.append('block_name', name));
     return params;
   }
-  function setCustomFormVisibility() {
-    const mode = $('customBlockMode').value;
-    const exact = mode === 'exact';
-    const contains = mode === 'contains';
-    $('customBlockName').hidden = !exact;
-    $('customBlockNameLabel').hidden = !exact;
-    $('customBlockText').hidden = !contains;
-    $('customBlockTextLabel').hidden = !contains;
-    $('customBlockName').disabled = !exact || !state.customBlocksLoaded;
-    $('customApply').disabled = exact && !state.custom.blockName || contains && !state.custom.blockText;
+  function customNames() { return state.customBlocks.map((item) => String(item.name || '')); }
+  function selectedCustomCount() { return (state.custom.selected || []).length; }
+  function renderCustomBlocks() {
+    const query = String(state.custom.search || '').trim().toLocaleLowerCase('zh-CN');
+    const items = state.customBlocks.filter((item) => !query || String(item.name || '').toLocaleLowerCase('zh-CN').includes(query));
+    const selected = new Set(state.custom.selected || []);
+    $('customBlockList').innerHTML = items.length ? items.map((item) => {
+      const name = String(item.name || '');
+      return `<label class="custom-block-option" title="${escapeHTML(name)}">
+        <input type="checkbox" class="custom-block-toggle" data-name="${escapeHTML(name)}" ${selected.has(name) ? 'checked' : ''} />
+        <span>${escapeHTML(name)}</span><small>${Number(item.stock_count || 0)}只</small>
+      </label>`;
+    }).join('') : '<div class="custom-empty">没有匹配的板块</div>';
+    $('customBlockList').querySelectorAll('.custom-block-toggle').forEach((input) => {
+      input.onchange = () => {
+        const name = input.dataset.name || '';
+        const next = new Set(state.custom.selected || []);
+        if (input.checked) next.add(name); else next.delete(name);
+        state.custom.selected = customNames().filter((value) => next.has(value));
+        updateCustomSummary();
+        persistCustomScope();
+      };
+    });
+    updateCustomSummary();
+  }
+  function updateCustomSummary() {
+    const total = state.customBlocks.length;
+    const selected = selectedCustomCount();
+    const query = String(state.custom.search || '').trim();
+    $('customSummary').textContent = query ? `匹配 ${$('customBlockList').querySelectorAll('.custom-block-toggle').length} 个 · 已选 ${selected}/${total}` : `已选 ${selected}/${total} 个板块`;
   }
   async function loadCustomBlocks() {
-    if (state.customBlocksLoaded) return;
+    if (state.customBlocksLoaded) { renderCustomBlocks(); return; }
     try {
       const res = await fetch('/api/stock_unusual_blocks');
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
-      const select = $('customBlockName');
-      select.innerHTML = (data.items || []).map((item) => `<option value="${escapeHTML(item.name)}">${escapeHTML(item.name)}（${Number(item.stock_count || 0)}只）</option>`).join('');
+      state.customBlocks = Array.isArray(data.items) ? data.items : [];
+      const names = new Set(customNames());
+      if (state.custom.selected === null) {
+        if (state.custom.legacyMode === 'exact' && names.has(state.custom.legacyName)) state.custom.selected = [state.custom.legacyName];
+        else if (state.custom.legacyMode === 'contains' && state.custom.legacyText) state.custom.selected = customNames().filter((name) => name.includes(state.custom.legacyText));
+        else state.custom.selected = customNames();
+      } else {
+        state.custom.selected = state.custom.selected.filter((name) => names.has(name));
+      }
       state.customBlocksLoaded = true;
-      if (state.custom.blockName && [...select.options].some((option) => option.value === state.custom.blockName)) select.value = state.custom.blockName;
-      else if (select.options.length) state.custom.blockName = select.options[0].value;
-      setCustomFormVisibility();
-      $('customSummary').textContent = `共 ${Number(data.total_blocks || 0)} 个板块，${Number(data.total_stocks || 0)} 只股票`;
+      $('customBlockSearch').value = state.custom.search;
+      renderCustomBlocks();
+      persistCustomScope();
+      if (state.mode === 'custom') connect();
     } catch (err) {
-      $('customSummary').textContent = `板块加载失败：${err.message || err}`;
-      setCustomFormVisibility();
+      $('customBlockList').innerHTML = `<div class="custom-empty">板块加载失败：${escapeHTML(err.message || err)}</div>`;
+      $('customSummary').textContent = '板块加载失败';
     }
   }
   function openCustomPanel() {
     $('customPanel').classList.add('open');
-    $('customBlockMode').value = state.custom.blockMode;
-    setCustomFormVisibility();
+    $('customPanel').setAttribute('aria-hidden', 'false');
+    $('tabCustom').setAttribute('aria-expanded', 'true');
     loadCustomBlocks();
   }
-  function closeCustomPanel() { $('customPanel').classList.remove('open'); }
+  function closeCustomPanel() {
+    $('customPanel').classList.remove('open');
+    $('customPanel').setAttribute('aria-hidden', 'true');
+    $('tabCustom').setAttribute('aria-expanded', 'false');
+  }
   function setTheme(theme) {
     document.documentElement.dataset.theme = theme;
     localStorage.setItem('stock_unusual_theme', theme);
@@ -637,21 +679,30 @@
   function escapeHTML(s) { return String(s).replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c])); }
 
   $('tabAll').onclick = () => setMode('all');
-  $('tabCustom').onclick = () => { setMode('custom'); openCustomPanel(); };
-  $('tabCurrent').onclick = () => setMode('current');
-  $('customBlockMode').onchange = (event) => {
-    state.custom.blockMode = event.target.value;
-    setCustomFormVisibility();
+  $('tabCustom').onclick = () => {
+    if (state.mode === 'custom' && $('customPanel').classList.contains('open')) closeCustomPanel();
+    else { setMode('custom'); openCustomPanel(); }
   };
-  $('customBlockName').onchange = (event) => { state.custom.blockName = event.target.value; setCustomFormVisibility(); };
-  $('customBlockText').oninput = (event) => { state.custom.blockText = event.target.value.trim(); setCustomFormVisibility(); };
+  $('tabCurrent').onclick = () => setMode('current');
+  $('customBlockSearch').oninput = (event) => {
+    state.custom.search = event.target.value;
+    renderCustomBlocks();
+    persistCustomScope();
+  };
+  $('customSelectAll').onclick = () => {
+    state.custom.selected = customNames();
+    renderCustomBlocks();
+    persistCustomScope();
+  };
+  $('customSelectNone').onclick = () => {
+    state.custom.selected = [];
+    renderCustomBlocks();
+    persistCustomScope();
+  };
   $('customApply').onclick = () => {
-    state.custom.blockMode = $('customBlockMode').value;
-    state.custom.blockName = $('customBlockName').value;
-    state.custom.blockText = $('customBlockText').value.trim();
     persistCustomScope();
     setMode('custom');
-    openCustomPanel();
+    closeCustomPanel();
   };
   $('themeDay').onclick = () => setTheme('day');
   $('themeNight').onclick = () => setTheme('night');

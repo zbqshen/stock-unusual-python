@@ -42,9 +42,10 @@ def _options(request: Request) -> dict[str, Any]:
     scope = q.get("scope", "current" if code else "all").strip()
     if scope not in {"all", "custom", "current"}: raise HTTPException(400, "scope 只支持 all、custom 或 current")
     mode, name, text = q.get("block_mode", "").strip(), q.get("block_name", "").strip(), q.get("block_text", "").strip()
+    block_names = [str(value).strip() for value in q.getlist("block_name") if str(value).strip()] if hasattr(q, "getlist") else ([name] if name else [])
     if scope == "custom":
         mode = mode or "all"
-        if mode not in {"all", "exact", "contains"}: raise HTTPException(400, "block_mode 只支持 all、exact 或 contains")
+        if mode not in {"all", "exact", "contains", "selected"}: raise HTTPException(400, "block_mode 只支持 all、exact、contains 或 selected")
         if mode == "exact" and not name: raise HTTPException(400, "block_mode=exact 时需要 block_name")
         if mode == "contains" and not text: raise HTTPException(400, "block_mode=contains 时需要 block_text")
     def nonnegative(key: str, default: int, maximum: int = 0) -> int:
@@ -55,7 +56,7 @@ def _options(request: Request) -> dict[str, Any]:
         if parsed < 0 or maximum and parsed > maximum: raise HTTPException(400, f"{key} 参数无效")
         return parsed
     return {"code": code, "scope": scope, "markets": _parse_markets(q.get("markets"), scope, code), "date": q.get("date", "").strip(),
-            "limit": nonnegative("limit", 0, 5000), "offset": nonnegative("offset", 0), "block_mode": mode, "block_name": name, "block_text": text}
+            "limit": nonnegative("limit", 0, 5000), "offset": nonnegative("offset", 0), "block_mode": mode, "block_name": name, "block_text": text, "block_names": block_names}
 
 
 def _load_names() -> dict[str, str]:
@@ -84,7 +85,7 @@ def _snapshot(opts: dict[str, Any]) -> dict[str, Any]:
     trade_date = opts["date"] or store.latest_trade_date() or shanghai_today()
     custom = None
     if opts["scope"] == "custom":
-        custom = blocks.universe(opts["block_mode"], opts["block_name"], opts["block_text"])
+        custom = blocks.universe(opts["block_mode"], opts["block_name"], opts["block_text"], opts["block_names"])
         if not custom.codes:
             events, source, total = [], "postgres", 0
         else:
@@ -98,7 +99,7 @@ def _snapshot(opts: dict[str, Any]) -> dict[str, Any]:
                "items": [e.to_dict() for e in events], "total_rows": total, "limit": opts["limit"], "offset": opts["offset"],
                "updated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "duration_ms": int((time.monotonic() - started) * 1000),
                "warning": warning, "data_source": source, "generated_by": "stock-unusual-python"}
-    if custom: payload.update(block_mode=opts["block_mode"], block_name=opts["block_name"], block_text=opts["block_text"], block_count=custom.block_count, stock_count=custom.stock_count)
+    if custom: payload.update(block_mode=opts["block_mode"], block_name=opts["block_name"], block_names=opts["block_names"], block_text=opts["block_text"], block_count=custom.block_count, stock_count=custom.stock_count)
     if events: payload.update(last_index=events[-1].index, last_time=events[-1].time)
     return payload
 
@@ -152,7 +153,7 @@ async def ws_stock_unusual(websocket: WebSocket):
     await websocket.accept(); last_signature = ""
     try:
         while True:
-            opts = _options_from_query(dict(websocket.query_params))
+            opts = _options_from_query(websocket.query_params)
             try:
                 payload = await asyncio.to_thread(_snapshot, opts)
                 signature = hashlib.sha1(json.dumps(payload["items"], ensure_ascii=False, sort_keys=True).encode()).hexdigest()

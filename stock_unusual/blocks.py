@@ -52,8 +52,10 @@ class CustomBlocks:
         with self._lock: self._options_cache = (now + 30, items, total)
         return items, total
 
-    def universe(self, mode: str, block_name: str = "", block_text: str = "") -> Universe:
-        key = f"{mode}\0{block_name}\0{block_text}"; now = time.monotonic()
+    def universe(self, mode: str, block_name: str = "", block_text: str = "", block_names: list[str] | None = None) -> Universe:
+        selected_names = tuple(sorted({str(name).strip() for name in (block_names or []) if str(name).strip()}))
+        selected_key = "\x1f".join(selected_names)
+        key = f"{mode}\0{block_name}\0{block_text}\0{selected_key}"; now = time.monotonic()
         with self._lock:
             cached = self._universe_cache.get(key)
             if cached and cached[0] > now: return cached[1]
@@ -62,6 +64,12 @@ class CustomBlocks:
             where, args = "", []
             if mode == "exact": where, args = " WHERE block_name=%s", [block_name]
             elif mode == "contains": where, args = " WHERE LOCATE(%s, block_name)>0", [block_text]
+            elif mode == "selected":
+                if selected_names:
+                    placeholders = ",".join(["%s"] * len(selected_names))
+                    where, args = f" WHERE block_name IN ({placeholders})", list(selected_names)
+                else:
+                    where = " WHERE 1=0"
             elif mode != "all": raise ValueError("不支持的板块筛选模式")
             with db.cursor() as cur:
                 cur.execute(f"SELECT COUNT(DISTINCT block_name) FROM `{table}`{where}", args); block_count = int(cur.fetchone()[0])

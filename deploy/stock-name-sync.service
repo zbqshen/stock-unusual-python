@@ -1,0 +1,13 @@
+[Unit]
+Description=stock-unusual-python TDX stock-name snapshot refresh
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=stock-unusual-python
+Group=stock-unusual-python
+WorkingDirectory=/opt/stock-unusual-python
+EnvironmentFile=/etc/stock-unusual-python.env
+EnvironmentFile=-/etc/qmt-realtime/qmt-proxy.env
+ExecStart=/opt/stock-unusual-python/.venv3/bin/stock-name-sync --env /etc/stock-unusual-python.env

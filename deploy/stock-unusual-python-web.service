@@ -1,0 +1,26 @@
+[Unit]
+Description=stock-unusual-python realtime web and API
+After=network-online.target postgresql.service redis-server.service
+Wants=network-online.target postgresql.service redis-server.service
+
+[Service]
+Type=simple
+User=stock-unusual-python
+Group=stock-unusual-python
+WorkingDirectory=/opt/stock-unusual-python
+Environment=PYTHONUNBUFFERED=1
+EnvironmentFile=/etc/stock-unusual-python.env
+EnvironmentFile=-/etc/qmt-realtime/qmt-proxy.env
+ExecStart=/opt/stock-unusual-python/.venv3/bin/stock-unusual-web
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/stock-unusual-python/data
+MemoryHigh=256M
+MemoryMax=384M
+
+[Install]
+WantedBy=multi-user.target

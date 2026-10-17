@@ -1,0 +1,10 @@
+[Unit]
+Description=Refresh stock-unusual-python stock names daily
+
+[Timer]
+OnCalendar=*-*-* 16:30:00 Asia/Shanghai
+Persistent=true
+RandomizedDelaySec=5m
+
+[Install]
+WantedBy=timers.target

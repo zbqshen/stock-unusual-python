@@ -1,0 +1,686 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="day">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>stock_unusual 实时异动</title>
+  <style>
+    :root {
+      --bg: #f6f8fb; --panel: #ffffff; --text: #142033; --muted: #64748b;
+      --border: #d9e2ef; --accent: #2563eb; --accent-soft: #dbeafe;
+      --good: #dc2626; --bad: #16a34a; --shadow: 0 18px 45px rgba(15, 23, 42, .08);
+      --thead: #eef4ff; --row-hover: #f8fbff;
+    }
+    html[data-theme="night"] {
+      --bg: #0b1020; --panel: #111827; --text: #e5edf8; --muted: #93a4b8;
+      --border: #243047; --accent: #60a5fa; --accent-soft: #1e3a5f;
+      --good: #fb7185; --bad: #4ade80; --shadow: 0 18px 45px rgba(0,0,0,.35);
+      --thead: #182238; --row-hover: #172136;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: var(--bg); color: var(--text); }
+    header { position: sticky; top: 0; z-index: 10000; background: color-mix(in srgb, var(--panel) 92%, transparent); border-bottom: 1px solid var(--border); backdrop-filter: blur(14px); }
+    .bar { max-width: 1500px; margin: 0 auto; padding: 7px 9px; display: flex; gap: 7px; align-items: center; justify-content: space-between; flex-wrap: nowrap; position: relative; font-size: 11px; overflow: visible; }
+    .bar-left, .bar-right { display: flex; gap: 5px; align-items: center; flex-wrap: nowrap; min-width: 0; }
+    .bar-left { flex: 0 0 auto; }
+    .bar-right { flex: 1 1 auto; justify-content: flex-end; }
+    .seg { display: inline-flex; padding: 2px; background: var(--bg); border: 1px solid var(--border); border-radius: 999px; gap: 2px; }
+    button { border: 0; color: var(--text); background: transparent; padding: 4px 7px; border-radius: 999px; cursor: pointer; font-weight: 650; font-size: 11px; line-height: 1.1; }
+    button.icon { min-width: 23px; padding: 4px 5px; font-size: 12px; line-height: 1; }
+    button.active { background: var(--accent); color: white; box-shadow: 0 4px 9px color-mix(in srgb, var(--accent) 35%, transparent); }
+    button:disabled { cursor: not-allowed; opacity: .48; }
+    main { max-width: 1500px; margin: 8px auto; padding: 0 9px 12px; }
+    .status { color: var(--muted); font-size: 11px; max-width: 520px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .status strong { color: var(--accent); }
+    .status-compact { display: none; }
+    .settings-wrap { position: relative; }
+    .custom-wrap { position: relative; }
+    .custom-panel { position: absolute; top: calc(100% + 8px); left: 0; width: min(560px, calc(100vw - 18px)); display: none; background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 10px; box-shadow: var(--shadow); z-index: 2147483647; }
+    .custom-panel.open { display: block; }
+    .custom-grid { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px; align-items: center; }
+    .custom-grid label { color: var(--muted); white-space: nowrap; }
+    .custom-grid select, .custom-grid input { min-width: 0; width: 100%; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); color: var(--text); padding: 5px 7px; font-size: 12px; }
+    .custom-actions { display: flex; justify-content: flex-end; gap: 6px; margin-top: 9px; }
+    .settings-panel { position: absolute; top: calc(100% + 8px); left: 0; right: auto; width: min(760px, calc(100vw - 18px)); max-height: min(620px, calc(100vh - 70px)); overflow: auto; display: none; background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 10px; box-shadow: var(--shadow); z-index: 2147483647; }
+    .settings-panel.open { display: block; }
+    .settings-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; color: var(--muted); font-size: 12px; }
+    .settings-actions { display: inline-flex; align-items: center; gap: 5px; }
+    .bulk-filter, .type-category-title { display: flex; align-items: center; gap: 6px; cursor: pointer; user-select: none; }
+    .bulk-filter { padding: 4px 7px; border: 1px solid var(--border); border-radius: 999px; background: var(--bg); color: var(--text); }
+    .type-filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(168px, 1fr)); gap: 8px; align-items: start; }
+    .type-category { border: 1px solid var(--border); border-radius: 12px; padding: 7px; background: color-mix(in srgb, var(--bg) 70%, transparent); }
+    .type-category-title { margin: 0 0 6px; font-size: 12px; color: var(--accent); line-height: 1.2; font-weight: 700; }
+    .type-category-items { display: grid; gap: 5px; }
+    .type-filter { display: flex; align-items: center; gap: 6px; border: 1px solid var(--border); border-radius: 10px; padding: 6px 7px; background: var(--bg); font-size: 12px; }
+    .type-filter input { margin: 0; }
+    .type-filter span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .table-wrap { background: var(--panel); border: 1px solid var(--border); border-radius: 16px; overflow-y: scroll; overflow-x: auto; height: calc(100vh - 52px); box-shadow: var(--shadow); scrollbar-gutter: stable; scrollbar-color: var(--accent) var(--bg); scrollbar-width: thin; }
+    .table-wrap::-webkit-scrollbar { width: 10px; height: 10px; }
+    .table-wrap::-webkit-scrollbar-track { background: var(--bg); border-radius: 999px; }
+    .table-wrap::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--accent) 60%, var(--border)); border-radius: 999px; border: 2px solid var(--bg); }
+    table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 13px; }
+    thead { background: var(--thead); }
+    thead th { position: sticky; top: 0; z-index: 4; background: var(--thead); box-shadow: inset 0 -1px 0 var(--border); }
+    th, td { padding: 9px 11px; border-bottom: 1px solid var(--border); text-align: left; white-space: nowrap; }
+    tbody tr:hover { background: var(--row-hover); }
+    .desc { font-weight: 400; }
+    .tone-up { color: var(--good); }
+    .tone-down { color: var(--bad); }
+    .empty, .loader { padding: 18px; text-align: center; color: var(--muted); }
+    .loader { font-size: 12px; background: color-mix(in srgb, var(--accent-soft) 35%, transparent); }
+    .to-bottom { position: fixed; right: 18px; bottom: 18px; z-index: 9999; width: 42px; height: 42px; padding: 0; display: grid; place-items: center; border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent); border-radius: 999px; background: color-mix(in srgb, var(--panel) 72%, transparent); color: var(--accent); opacity: .46; box-shadow: 0 10px 28px rgba(15, 23, 42, .16); backdrop-filter: blur(10px); }
+    .to-bottom::before { content: ''; width: 12px; height: 12px; border-right: 3px solid currentColor; border-bottom: 3px solid currentColor; transform: rotate(45deg) translate(-1px, -2px); }
+    .to-bottom:hover, .to-bottom:focus-visible { opacity: .9; }
+    @media (max-width: 850px) {
+      .bar { gap: 5px; padding: 6px 7px; }
+      .status { max-width: 340px; }
+      .settings-panel { left: 0; width: calc(100vw - 18px); }
+      .type-filters { grid-template-columns: 1fr; }
+      th, td { padding: 8px; }
+    }
+    @media (max-width: 700px) {
+      .status-full { display: none; }
+      .status-compact { display: inline; }
+      .status { max-width: 190px; }
+    }
+    @media (max-width: 560px) {
+      .theme-seg { display: none; }
+    }
+    @media (max-width: 450px) {
+      .settings-wrap { display: none; }
+    }
+    @media (max-width: 350px) {
+      .bar-right { display: none; }
+    }
+  </style>
+</head>
+<body>
+<header>
+  <div class="bar">
+    <div class="bar-left">
+      <div class="seg" aria-label="数据范围">
+        <button id="tabAll" class="active">全部</button>
+        <button id="tabCustom">自定</button>
+        <button id="tabCurrent">当前</button>
+      </div>
+      <div class="custom-wrap">
+        <div id="customPanel" class="custom-panel" role="dialog" aria-label="自定板块范围">
+          <div class="custom-grid">
+            <label for="customBlockMode">板块范围</label>
+            <select id="customBlockMode">
+              <option value="all">所有板块</option>
+              <option value="exact">指定板块</option>
+              <option value="contains">板块名称包含文本</option>
+            </select>
+            <label id="customBlockNameLabel" for="customBlockName">板块</label>
+            <select id="customBlockName" disabled><option value="">加载板块中...</option></select>
+            <label id="customBlockTextLabel" for="customBlockText" hidden>包含文本</label>
+            <input id="customBlockText" type="search" placeholder="例如：日线、机器人" hidden />
+          </div>
+          <div class="custom-actions">
+            <span id="customSummary" class="status"></span>
+            <button id="customApply" class="active" type="button">应用</button>
+          </div>
+        </div>
+      </div>
+      <div class="seg theme-seg" aria-label="主题">
+        <button id="themeDay" class="icon active" aria-label="白天" title="白天">☀</button>
+        <button id="themeNight" class="icon" aria-label="黑夜" title="黑夜">☾</button>
+      </div>
+      <div class="seg" aria-label="语音播报">
+        <button id="voiceToggle" class="icon" type="button" aria-pressed="false" aria-label="开启语音播报" title="开启语音播报">🔇</button>
+      </div>
+      <div class="settings-wrap">
+        <button id="settingsButton" class="icon" aria-haspopup="dialog" aria-expanded="false" aria-label="设置" title="设置">⚙</button>
+        <div id="settingsPanel" class="settings-panel" role="dialog" aria-label="异动类型设置">
+          <div class="settings-head">
+            <strong>显示异动类型</strong>
+            <div class="settings-actions">
+              <label class="bulk-filter" title="勾选显示全部异动类型，取消则隐藏全部异动类型">
+                <input id="toggleAllTypes" type="checkbox" />
+                <span>全选/全不选</span>
+              </label>
+            </div>
+          </div>
+          <div id="typeFilters" class="type-filters"></div>
+        </div>
+      </div>
+    </div>
+    <div class="bar-right">
+      <div id="status" class="status"><span class="status-full"><strong>连接中</strong> 正在建立 WebSocket...</span><span class="status-compact">连接中</span></div>
+    </div>
+  </div>
+</header>
+<main>
+  <section id="tableWrap" class="table-wrap">
+    <table>
+      <thead><tr><th>代码</th><th>名称</th><th>时间</th><th>异动</th><th>数值</th></tr></thead>
+      <tbody id="tbody"><tr><td colspan="5" class="empty">等待数据...</td></tr></tbody>
+    </table>
+  </section>
+</main>
+<button id="toBottom" class="to-bottom" type="button" title="直达底部" aria-label="直达底部"></button>
+<script>
+  const FILTER_KEY = 'stock_unusual_visible_types';
+  const FILTER_TOUCHED_KEY = 'stock_unusual_visible_types_touched';
+  const DISCOVERED_TYPES_KEY = 'stock_unusual_discovered_types';
+  const VOICE_KEY = 'stock_unusual_voice_enabled';
+  const CUSTOM_SCOPE_KEY = 'stock_unusual_custom_scope';
+  const PAGE_SIZE = 100;
+  const ALL_TYPES = [
+    ['主力买入', '3'], ['主力卖出', '3'], ['加速拉升', '4'], ['加速下跌', '5'], ['低位反弹', '6'],
+    ['高位回落', '7'], ['撑杆跳高', '8'], ['平台跳水', '9'], ['单笔冲涨', '10'], ['单笔冲跌', '10'],
+    ['区间放量涨', '11'], ['区间放量跌', '11'], ['区间放量平', '11'], ['区间缩量', '12'],
+    ['大单托盘', '16'], ['大单压盘', '17'], ['大单锁盘', '18'], ['竞价试买', '19'], ['竞价试卖', '19'],
+    ['逼近涨停', '20'], ['逼近跌停', '20'], ['封涨停板', '20'], ['封跌停板', '20'],
+    ['打开涨停', '20'], ['打开跌停', '20'], ['封涨大减', '20'], ['封跌大减', '20'],
+    ['竞价对倒', '21'], ['竞价拉升', '21'], ['竞价打压', '21'], ['尾盘拉升', '21'], ['尾盘打压', '21'], ['尾盘对倒', '21'],
+    ['盘中强势', '22'], ['盘中弱势', '22'], ['急速拉升', '29'], ['急速下跌', '30'],
+  ];
+  const TYPE_CATEGORIES = [
+    ['主力 / 大单', ['主力买入', '主力卖出', '大单托盘', '大单压盘', '大单锁盘']],
+    ['拉升 / 走强', ['加速拉升', '低位反弹', '撑杆跳高', '单笔冲涨', '盘中强势', '急速拉升']],
+    ['下跌 / 走弱', ['加速下跌', '高位回落', '平台跳水', '单笔冲跌', '盘中弱势', '急速下跌']],
+    ['涨跌停', ['逼近涨停', '逼近跌停', '封涨停板', '封跌停板', '打开涨停', '打开跌停', '封涨大减', '封跌大减']],
+    ['量能', ['区间放量涨', '区间放量跌', '区间放量平', '区间缩量']],
+    ['竞价', ['竞价试买', '竞价试卖', '竞价对倒', '竞价拉升', '竞价打压']],
+    ['尾盘', ['尾盘对倒', '尾盘拉升', '尾盘打压']],
+  ];
+  const DESC_TONES = {
+    主力买入: 'tone-up', 主力卖出: 'tone-down', 加速拉升: 'tone-up', 加速下跌: 'tone-down',
+    低位反弹: 'tone-up', 高位回落: 'tone-down', 撑杆跳高: 'tone-up', 平台跳水: 'tone-down', 单笔冲涨: 'tone-up', 单笔冲跌: 'tone-down',
+    区间放量涨: 'tone-up', 区间放量跌: 'tone-down', 区间放量平: '', 区间缩量: '',
+    大单托盘: 'tone-up', 大单压盘: 'tone-down', 大单锁盘: '', 竞价试买: 'tone-up', 竞价试卖: 'tone-down',
+    逼近涨停: 'tone-up', 逼近跌停: 'tone-down', 封涨停板: 'tone-up', 封跌停板: 'tone-down',
+    打开涨停: 'tone-down', 打开跌停: 'tone-up', 封涨大减: 'tone-down', 封跌大减: 'tone-up',
+    竞价拉升: 'tone-up', 竞价打压: 'tone-down', 竞价对倒: '', 尾盘拉升: 'tone-up', 尾盘打压: 'tone-down', 尾盘对倒: '',
+    盘中强势: 'tone-up', 盘中弱势: 'tone-down', 急速拉升: 'tone-up', 急速下跌: 'tone-down',
+  };
+  const state = {
+    mode: 'all', code: extractCode(), ws: null, reconnectTimer: null,
+    rows: [], visibleTypes: loadVisibleTypes(), discoveredTypes: loadDiscoveredTypes(), filtersTouched: localStorage.getItem(FILTER_TOUCHED_KEY) === '1',
+    stickBottom: true, renderLimit: PAGE_SIZE, totalRows: 0, loadingOlder: false, lastMeta: null,
+    voiceEnabled: localStorage.getItem(VOICE_KEY) === '1', voiceSeenRows: new Set(), voiceSnapshotReady: false,
+    custom: loadCustomScope(), customBlocksLoaded: false,
+  };
+  const $ = (id) => document.getElementById(id);
+
+  function extractCode() {
+    const q = new URLSearchParams(location.search).get('code') || '';
+    const p = location.pathname.match(/code=(\d{6})/);
+    return q || (p ? p[1] : '');
+  }
+  function loadVisibleTypes() {
+    try {
+      const raw = JSON.parse(localStorage.getItem(FILTER_KEY) || '[]');
+      const values = Array.isArray(raw) ? raw.map(String) : [];
+      const expanded = new Set();
+      for (const value of values) {
+        const matched = ALL_TYPES.filter(([, type]) => type === value).map(([label]) => label);
+        if (matched.length) matched.forEach((label) => expanded.add(label)); else expanded.add(value);
+      }
+      return expanded;
+    } catch { return new Set(); }
+  }
+  function persistVisibleTypes() {
+    localStorage.setItem(FILTER_KEY, JSON.stringify([...state.visibleTypes].sort((a, b) => a.localeCompare(b, 'zh-CN'))));
+    localStorage.setItem(FILTER_TOUCHED_KEY, '1');
+    state.filtersTouched = true;
+  }
+  function loadDiscoveredTypes() {
+    try {
+      const raw = JSON.parse(localStorage.getItem(DISCOVERED_TYPES_KEY) || '{}');
+      return new Map(Object.entries(raw).map(([type, desc]) => [String(type), String(desc || `未知类型 ${type}`)]));
+    } catch { return new Map(); }
+  }
+  function persistDiscoveredTypes() {
+    localStorage.setItem(DISCOVERED_TYPES_KEY, JSON.stringify(Object.fromEntries(state.discoveredTypes)));
+  }
+  function loadCustomScope() {
+    try {
+      const value = JSON.parse(localStorage.getItem(CUSTOM_SCOPE_KEY) || '{}');
+      return {
+        blockMode: ['all', 'exact', 'contains'].includes(value.blockMode) ? value.blockMode : 'all',
+        blockName: String(value.blockName || ''), blockText: String(value.blockText || ''),
+      };
+    } catch { return {blockMode: 'all', blockName: '', blockText: ''}; }
+  }
+  function persistCustomScope() {
+    localStorage.setItem(CUSTOM_SCOPE_KEY, JSON.stringify(state.custom));
+  }
+  function customRequestParams() {
+    const params = new URLSearchParams({scope: 'custom', block_mode: state.custom.blockMode});
+    if (state.custom.blockMode === 'exact') params.set('block_name', state.custom.blockName);
+    if (state.custom.blockMode === 'contains') params.set('block_text', state.custom.blockText);
+    return params;
+  }
+  function setCustomFormVisibility() {
+    const mode = $('customBlockMode').value;
+    const exact = mode === 'exact';
+    const contains = mode === 'contains';
+    $('customBlockName').hidden = !exact;
+    $('customBlockNameLabel').hidden = !exact;
+    $('customBlockText').hidden = !contains;
+    $('customBlockTextLabel').hidden = !contains;
+    $('customBlockName').disabled = !exact || !state.customBlocksLoaded;
+    $('customApply').disabled = exact && !state.custom.blockName || contains && !state.custom.blockText;
+  }
+  async function loadCustomBlocks() {
+    if (state.customBlocksLoaded) return;
+    try {
+      const res = await fetch('/api/stock_unusual_blocks');
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      const select = $('customBlockName');
+      select.innerHTML = (data.items || []).map((item) => `<option value="${escapeHTML(item.name)}">${escapeHTML(item.name)}（${Number(item.stock_count || 0)}只）</option>`).join('');
+      state.customBlocksLoaded = true;
+      if (state.custom.blockName && [...select.options].some((option) => option.value === state.custom.blockName)) select.value = state.custom.blockName;
+      else if (select.options.length) state.custom.blockName = select.options[0].value;
+      setCustomFormVisibility();
+      $('customSummary').textContent = `共 ${Number(data.total_blocks || 0)} 个板块，${Number(data.total_stocks || 0)} 只股票`;
+    } catch (err) {
+      $('customSummary').textContent = `板块加载失败：${err.message || err}`;
+      setCustomFormVisibility();
+    }
+  }
+  function openCustomPanel() {
+    $('customPanel').classList.add('open');
+    $('customBlockMode').value = state.custom.blockMode;
+    setCustomFormVisibility();
+    loadCustomBlocks();
+  }
+  function closeCustomPanel() { $('customPanel').classList.remove('open'); }
+  function setTheme(theme) {
+    document.documentElement.dataset.theme = theme;
+    localStorage.setItem('stock_unusual_theme', theme);
+    $('themeDay').classList.toggle('active', theme === 'day');
+    $('themeNight').classList.toggle('active', theme === 'night');
+  }
+  function setMode(mode) {
+    state.mode = mode;
+    state.rows = [];
+    state.totalRows = 0;
+    state.renderLimit = PAGE_SIZE;
+    state.stickBottom = true;
+    state.voiceSeenRows.clear();
+    state.voiceSnapshotReady = false;
+    if (supportsVoiceBroadcast()) window.speechSynthesis.cancel();
+    $('tabAll').classList.toggle('active', mode === 'all');
+    $('tabCustom').classList.toggle('active', mode === 'custom');
+    $('tabCurrent').classList.toggle('active', mode === 'current');
+    if (mode !== 'custom') closeCustomPanel();
+    connect();
+  }
+  function setStatus(title, detail, compact) {
+    $('status').innerHTML = `<span class="status-full"><strong>${escapeHTML(title)}</strong> ${escapeHTML(detail || '')}</span><span class="status-compact">${escapeHTML(compact || title)}</span>`;
+  }
+  function supportsVoiceBroadcast() {
+    return 'speechSynthesis' in window && 'SpeechSynthesisUtterance' in window;
+  }
+  function updateVoiceToggle() {
+    const button = $('voiceToggle');
+    const enabled = supportsVoiceBroadcast() && state.voiceEnabled;
+    button.classList.toggle('active', enabled);
+    button.setAttribute('aria-pressed', String(enabled));
+    button.textContent = enabled ? '🔊' : '🔇';
+    button.title = supportsVoiceBroadcast() ? (enabled ? '关闭语音播报' : '开启语音播报') : '当前浏览器不支持语音播报';
+    button.setAttribute('aria-label', button.title);
+  }
+  function setVoiceEnabled(enabled) {
+    if (!supportsVoiceBroadcast()) {
+      state.voiceEnabled = false;
+      localStorage.setItem(VOICE_KEY, '0');
+      updateVoiceToggle();
+      return;
+    }
+    state.voiceEnabled = Boolean(enabled);
+    localStorage.setItem(VOICE_KEY, state.voiceEnabled ? '1' : '0');
+    if (!state.voiceEnabled) window.speechSynthesis.cancel();
+    updateVoiceToggle();
+  }
+  function initializeVoiceToggle() {
+    if (!supportsVoiceBroadcast()) {
+      state.voiceEnabled = false;
+      $('voiceToggle').disabled = true;
+      localStorage.setItem(VOICE_KEY, '0');
+    }
+    updateVoiceToggle();
+  }
+  function voiceAnnouncement(row) {
+    const name = String(row?.name || '').trim();
+    const subject = name || '未知股票';
+    return [subject, row?.desc]
+      .map((value) => String(value || '').trim())
+      .filter(Boolean)
+      .join('，');
+  }
+  function isVoiceRowVisible(row) {
+    return !state.filtersTouched || state.visibleTypes.has(eventTypeKey(row)) || state.visibleTypes.has(String(row?.unusual_type));
+  }
+  function speakUnusualRow(row) {
+    if (!state.voiceEnabled || !supportsVoiceBroadcast() || !isVoiceRowVisible(row)) return;
+    const utterance = new SpeechSynthesisUtterance(voiceAnnouncement(row));
+    utterance.lang = 'zh-CN';
+    utterance.rate = 1.05;
+    utterance.pitch = 1;
+    window.speechSynthesis.speak(utterance);
+  }
+  function observeRealtimeRows(rows) {
+    const newRows = [];
+    for (const row of rows) {
+      const key = rowKey(row);
+      if (state.voiceSnapshotReady && !state.voiceSeenRows.has(key)) newRows.push(row);
+      state.voiceSeenRows.add(key);
+    }
+    if (!state.voiceSnapshotReady) {
+      state.voiceSnapshotReady = true;
+      return;
+    }
+    for (const row of newRows) speakUnusualRow(row);
+  }
+  function wsURL() {
+    const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const params = new URLSearchParams({ scope: state.mode });
+    if (state.mode === 'all') params.set('limit', String(PAGE_SIZE));
+    if (state.mode === 'custom') {
+      for (const [key, value] of customRequestParams()) params.set(key, value);
+      params.set('limit', String(PAGE_SIZE));
+    }
+    if (state.mode === 'current' && state.code) params.set('code', state.code);
+    return `${proto}//${location.host}/ws/stock-unusual?${params.toString()}`;
+  }
+  function connect() {
+    if (state.ws) state.ws.close();
+    clearTimeout(state.reconnectTimer);
+    if (state.mode === 'current' && !state.code) {
+      setStatus('等待代码', '当前模式请通过 /code=600176 打开。');
+      render({ items: [], total_rows: 0 });
+      return;
+    }
+    setStatus('连接中', wsURL());
+    const ws = new WebSocket(wsURL());
+    state.ws = ws;
+    ws.onopen = () => setStatus('已连接', '等待实时数据...');
+    ws.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      if (data.error) { setStatus('错误', data.error); return; }
+      if (Array.isArray(data.items)) observeRealtimeRows(data.items);
+      render(data);
+    };
+    ws.onclose = () => {
+      setStatus('已断开', '3 秒后重连...');
+      state.reconnectTimer = setTimeout(connect, 3000);
+    };
+    ws.onerror = () => setStatus('连接异常', 'WebSocket 出错');
+  }
+  function isAtBottom() {
+    const wrap = $('tableWrap');
+    return wrap.scrollHeight - wrap.scrollTop - wrap.clientHeight <= 4;
+  }
+  function scrollToBottom() {
+    const wrap = $('tableWrap');
+    wrap.scrollTop = wrap.scrollHeight;
+  }
+  function eventTypeKey(row) {
+    const desc = String(row?.desc || '').trim();
+    return desc || `未知类型 ${row?.unusual_type ?? ''}`;
+  }
+  function descToneClass(desc) {
+    return DESC_TONES[String(desc || '').trim()] || '';
+  }
+  function visibleRows() {
+    if (!state.filtersTouched) return state.rows;
+    return state.rows.filter((x) => state.visibleTypes.has(eventTypeKey(x)) || state.visibleTypes.has(String(x.unusual_type)));
+  }
+  function displayedRows() {
+    const items = visibleRows();
+    const start = Math.max(0, items.length - state.renderLimit);
+    return { items: items.slice(start), total: items.length, start };
+  }
+  function updateStatus(data, visibleTotal, displayedCount) {
+    const label = state.mode === 'current' ? `当前 ${state.code}` : state.mode === 'custom' ? '自定' : '全部';
+    const compactLabel = state.mode === 'current' ? (state.code || '当前') : state.mode === 'custom' ? '自定' : '全部';
+    const source = data?.data_source || state.lastMeta?.data_source || '';
+    const duration = data?.duration_ms ?? state.lastMeta?.duration_ms ?? '-';
+    const full = `${label} · 已加载 ${state.rows.length} 条 · ${source} · ${duration}ms`;
+    const compact = `${compactLabel} · ${state.rows.length}条 · ${duration}ms`;
+    $('status').innerHTML = `<span class="status-full">${escapeHTML(full)}</span><span class="status-compact">${escapeHTML(compact)}</span>`;
+  }
+  function render(data, opts = {}) {
+    const wrap = $('tableWrap');
+    const prevHeight = wrap.scrollHeight;
+    const shouldStick = opts.forceBottom || state.stickBottom || isAtBottom();
+    if (data.items) {
+      if ((state.mode === 'all' || state.mode === 'custom') && data.limit) {
+        state.rows = (data.offset || state.rows.length > PAGE_SIZE) ? mergeRows(state.rows, data.items) : [...data.items];
+        state.renderLimit = Math.max(state.renderLimit, state.rows.length);
+      } else {
+        state.rows = [...data.items];
+      }
+      state.totalRows = data.total_rows ?? state.rows.length;
+      rememberRowTypes(state.rows);
+    }
+    state.lastMeta = {...(state.lastMeta || {}), ...data};
+    renderTypeFilters();
+    const {items, total, start} = displayedRows();
+    const tbody = $('tbody');
+    if (!items.length) {
+      tbody.innerHTML = '<tr><td colspan="5" class="empty">暂无匹配异动数据</td></tr>';
+      updateStatus(data, total, 0);
+      if (shouldStick) requestAnimationFrame(scrollToBottom);
+      return;
+    }
+    const hasServerOlder = (state.mode === 'all' || state.mode === 'custom') && state.rows.length < state.totalRows;
+    const more = (hasServerOlder || start > 0) ? `<tr class="loader"><td colspan="5">向上滚动加载更早 100 条（已显示 ${items.length}/${state.totalRows || total}）</td></tr>` : '';
+    tbody.innerHTML = more + items.map((x) => `
+      <tr data-type="${x.unusual_type}">
+        <td>${escapeHTML(x.code || '')}</td><td>${escapeHTML(x.name || '')}</td><td>${escapeHTML(x.time || '')}</td>
+        <td class="desc ${descToneClass(x.desc || '')}">${escapeHTML(x.desc || '')}</td>
+        <td>${escapeHTML(x.value || '')}</td>
+      </tr>`).join('');
+    updateStatus(data, total, items.length);
+    if (opts.preserveTop) {
+      requestAnimationFrame(() => { wrap.scrollTop = wrap.scrollHeight - prevHeight; });
+    } else if (shouldStick) {
+      requestAnimationFrame(scrollToBottom);
+    }
+  }
+  function knownTypeEntries() {
+    const entries = ALL_TYPES.map(([label, type]) => [label, label, type]);
+    const known = new Set(entries.map(([key]) => key));
+    for (const [key, desc] of state.discoveredTypes.entries()) {
+      if (!known.has(key)) {
+        entries.push([key, desc, '']);
+        known.add(key);
+      }
+    }
+    for (const row of state.rows) {
+      const key = eventTypeKey(row);
+      if (!known.has(key)) {
+        entries.push([key, row.desc || key, String(row.unusual_type || '')]);
+        known.add(key);
+      }
+    }
+    return entries.sort((a, b) => Number(a[2] || 9999) - Number(b[2] || 9999) || a[1].localeCompare(b[1], 'zh-CN'));
+  }
+  function rowKey(row) {
+    return `${row.trade_date || ''}|${row.market}|${row.index}`;
+  }
+  function mergeRows(existing, incoming) {
+    const byKey = new Map();
+    for (const row of existing) byKey.set(rowKey(row), row);
+    for (const row of incoming) byKey.set(rowKey(row), row);
+    const rows = [...byKey.values()];
+    rows.sort((a, b) => (a.time || '').localeCompare(b.time || '') || Number(a.market) - Number(b.market) || Number(a.index) - Number(b.index) || String(a.code).localeCompare(String(b.code)));
+    return rows;
+  }
+  function rememberRowTypes(rows) {
+    const builtIn = new Set(ALL_TYPES.map(([label]) => label));
+    let discoveredChanged = false;
+    let visibleChanged = false;
+    for (const row of rows) {
+      const key = eventTypeKey(row);
+      if (builtIn.has(key) || state.discoveredTypes.has(key)) continue;
+      state.discoveredTypes.set(key, row.desc || key);
+      discoveredChanged = true;
+      // 如果用户已经做过筛选设置，真正的新类型也默认加入可见集合，避免后续新异动被静默隐藏。
+      if (state.filtersTouched && !state.visibleTypes.has(key)) {
+        state.visibleTypes.add(key);
+        visibleChanged = true;
+      }
+    }
+    if (discoveredChanged) persistDiscoveredTypes();
+    if (visibleChanged) persistVisibleTypes();
+  }
+  function isTypeEntryVisible([key, , type]) {
+    return !state.filtersTouched || state.visibleTypes.has(key) || state.visibleTypes.has(String(type));
+  }
+  function beginFilterEdit(entries) {
+    if (!state.filtersTouched) state.visibleTypes = new Set(entries.map(([key]) => key));
+  }
+  function renderTypeFilters() {
+    const entries = knownTypeEntries();
+    const entryByKey = new Map(entries.map((entry) => [entry[0], entry]));
+    const used = new Set();
+    const groups = TYPE_CATEGORIES.map(([category, labels]) => {
+      const group = labels.map((label) => entryByKey.get(label)).filter(Boolean);
+      group.forEach(([key]) => used.add(key));
+      return [category, group];
+    });
+    const other = entries.filter(([key]) => !used.has(key));
+    if (other.length) groups.push(['其他', other]);
+    const activeGroups = groups.filter(([, group]) => group.length);
+    $('typeFilters').innerHTML = activeGroups.map(([category, group], index) => {
+      const groupChecked = group.every(isTypeEntryVisible);
+      return `
+      <section class="type-category">
+        <label class="type-category-title" title="勾选/取消此分栏下所有异动类型">
+          <input type="checkbox" class="category-toggle" data-group="${index}" ${groupChecked ? 'checked' : ''} />
+          <span>${escapeHTML(category)}</span>
+        </label>
+        <div class="type-category-items">
+          ${group.map(([key, desc, type]) => {
+            const checked = isTypeEntryVisible([key, desc, type]);
+            return `<label class="type-filter" title="${escapeHTML(desc)}">
+              <input type="checkbox" class="type-toggle" data-key="${escapeHTML(key)}" ${checked ? 'checked' : ''} />
+              <span>${escapeHTML(desc)}</span>
+            </label>`;
+          }).join('')}
+        </div>
+      </section>`;
+    }).join('');
+    $('typeFilters').querySelectorAll('.type-toggle').forEach((input) => {
+      input.onchange = () => {
+        beginFilterEdit(entries);
+        const key = input.dataset.key;
+        if (input.checked) state.visibleTypes.add(key); else state.visibleTypes.delete(key);
+        persistVisibleTypes();
+        state.renderLimit = PAGE_SIZE;
+        state.stickBottom = true;
+        render({});
+      };
+    });
+    $('typeFilters').querySelectorAll('.category-toggle').forEach((input) => {
+      input.onchange = () => {
+        beginFilterEdit(entries);
+        const group = activeGroups[Number(input.dataset.group)]?.[1] || [];
+        for (const [key] of group) {
+          if (input.checked) state.visibleTypes.add(key); else state.visibleTypes.delete(key);
+        }
+        persistVisibleTypes();
+        state.renderLimit = PAGE_SIZE;
+        state.stickBottom = true;
+        render({});
+      };
+    });
+    const allChecked = entries.length > 0 && entries.every(isTypeEntryVisible);
+    $('toggleAllTypes').checked = allChecked;
+  }
+  function setAllTypeVisibility(visible) {
+    const entries = knownTypeEntries();
+    state.visibleTypes = visible ? new Set(entries.map(([key]) => key)) : new Set();
+    persistVisibleTypes();
+    state.renderLimit = PAGE_SIZE;
+    state.stickBottom = true;
+    render({});
+  }
+  async function fetchOlderRows() {
+    if (state.loadingOlder || (state.mode !== 'all' && state.mode !== 'custom') || state.rows.length >= state.totalRows) return;
+    state.loadingOlder = true;
+    try {
+      const params = state.mode === 'custom' ? customRequestParams() : new URLSearchParams({scope: 'all'});
+      params.set('limit', String(PAGE_SIZE));
+      params.set('offset', String(state.rows.length));
+      const res = await fetch(`/api/stock-unusual?${params.toString()}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      render(data, {preserveTop: true});
+    } catch (err) {
+      setStatus('加载失败', err.message || String(err));
+    } finally {
+      state.loadingOlder = false;
+    }
+  }
+  function maybeLoadOlderRows() {
+    const wrap = $('tableWrap');
+    if (wrap.scrollTop > 2) return;
+    if ((state.mode === 'all' || state.mode === 'custom') && state.rows.length < state.totalRows) {
+      fetchOlderRows();
+      return;
+    }
+    const total = visibleRows().length;
+    if (state.renderLimit >= total) return;
+    state.renderLimit = Math.min(state.renderLimit + PAGE_SIZE, total);
+    state.stickBottom = false;
+    render({}, {preserveTop: true});
+  }
+  function escapeHTML(s) { return String(s).replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c])); }
+
+  $('tabAll').onclick = () => setMode('all');
+  $('tabCustom').onclick = () => { setMode('custom'); openCustomPanel(); };
+  $('tabCurrent').onclick = () => setMode('current');
+  $('customBlockMode').onchange = (event) => {
+    state.custom.blockMode = event.target.value;
+    setCustomFormVisibility();
+  };
+  $('customBlockName').onchange = (event) => { state.custom.blockName = event.target.value; setCustomFormVisibility(); };
+  $('customBlockText').oninput = (event) => { state.custom.blockText = event.target.value.trim(); setCustomFormVisibility(); };
+  $('customApply').onclick = () => {
+    state.custom.blockMode = $('customBlockMode').value;
+    state.custom.blockName = $('customBlockName').value;
+    state.custom.blockText = $('customBlockText').value.trim();
+    persistCustomScope();
+    setMode('custom');
+    openCustomPanel();
+  };
+  $('themeDay').onclick = () => setTheme('day');
+  $('themeNight').onclick = () => setTheme('night');
+  $('voiceToggle').onclick = () => setVoiceEnabled(!state.voiceEnabled);
+  $('toBottom').onclick = () => { state.stickBottom = true; scrollToBottom(); };
+  $('toggleAllTypes').onchange = (event) => { event.stopPropagation(); setAllTypeVisibility(event.target.checked); };
+  $('settingsButton').onclick = (event) => {
+    event.stopPropagation();
+    const panel = $('settingsPanel');
+    const open = !panel.classList.contains('open');
+    panel.classList.toggle('open', open);
+    $('settingsButton').setAttribute('aria-expanded', String(open));
+  };
+  document.addEventListener('click', (event) => {
+    if (!$('settingsPanel').contains(event.target) && event.target !== $('settingsButton')) {
+      $('settingsPanel').classList.remove('open');
+      $('settingsButton').setAttribute('aria-expanded', 'false');
+    }
+    if (!$('customPanel').contains(event.target) && event.target !== $('tabCustom')) closeCustomPanel();
+  });
+  $('tableWrap').addEventListener('scroll', () => {
+    state.stickBottom = isAtBottom();
+    maybeLoadOlderRows();
+  });
+
+  renderTypeFilters();
+  setTheme(localStorage.getItem('stock_unusual_theme') || 'day');
+  initializeVoiceToggle();
+  if (state.code) setMode('current'); else setMode('all');
+</script>
+</body>
+</html>

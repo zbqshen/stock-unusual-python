@@ -2,8 +2,6 @@
 
 `stock_unusual` 实时异动服务的独立 Python 实现，包含实时采集器、Web 页面、REST API 和 WebSocket 接口。
 
-本项目不导入、不依赖 `gotdx`。TDX 二进制协议已在 `stock_unusual/tdx.py` 中独立实现。
-
 ## 功能
 
 - 从 TDX 行情服务器采集股票实时异动数据。
@@ -33,21 +31,6 @@
   - 从 TDX 更新股票名称快照。
   - 使用 SQLite 原子替换，避免产生不完整快照。
 
-## API 接口
-
-为了兼容原有页面，保留以下接口：
-
-```text
-GET /unusual
-GET /api/stock_unusual
-GET /api/stock-unusual
-GET /api/stock_unusual_blocks
-GET /api/stock-unusual-blocks
-WS  /ws/stock_unusual
-WS  /ws/stock-unusual
-GET /health/live
-GET /health/ready
-```
 
 ### 查询全部异动
 
@@ -143,8 +126,6 @@ STOCK_UNUSUAL_POLL_INTERVAL_SECONDS=1
 STOCK_UNUSUAL_PAGE_SIZE=600
 STOCK_UNUSUAL_MAX_PAGES=128
 STOCK_UNUSUAL_OVERLAP_ROWS=600
-STOCK_NAME_DB=/opt/stock-unusual-python/data/stocknames.sqlite3
-CUSTOM_BLOCK_MYSQL_CONFIG=/opt/stock-unusual-python/config/mysql.ini
 ```
 
 不要将包含密码、数据库连接字符串或其他凭据的配置文件提交到 Git 仓库。运行时配置和本地数据已通过 `.gitignore` 排除。
